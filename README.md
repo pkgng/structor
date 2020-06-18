@@ -1,6 +1,6 @@
 # Structor
 
-  I am a struct builder, init struct from others
+  I am a struct initializer, init struct from others 
 
 
 ## Features
@@ -47,6 +47,18 @@ func main() {
 
 	fmt.Printf("%#v\n", farmer)
 }
+```
+
+```output
+	Farmer {
+		Name:		"ZhangSan", 
+		Age:		18, 
+		Nickname:	"zhangsan", 
+		DoubleAge:	36, 
+		SuperRule:	"Farmer-Admin", 
+		Notes:		[]string{"world", "hello"}, 
+		FlagCnt:	3
+	}
 ```
 
 ## Contributing
