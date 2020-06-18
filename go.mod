@@ -1,4 +1,4 @@
-module structor
+module github.com/pkgng/structor
 
 go 1.13
 
