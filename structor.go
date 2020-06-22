@@ -5,37 +5,64 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/robertkrimen/otto"
 )
 
-type Structor struct {
-	target     interface{}
-	langis     *otto.Otto
-	components map[string]interface{}
-	copy       bool
+type BaseStructor struct {
+	target interface{}
+	langis *otto.Otto
+	copy   bool
 }
 
-func NewStructor(target interface{}) *Structor {
-	t := &Structor{}
-	t.copy = false
-	t.langis = otto.New()
-	t.target = target
+type Structor struct {
+	components map[string]interface{}
+}
 
-	t.langis.Set("self", target)
+func New() *Structor {
+	t := &Structor{}
+	t.components = make(map[string]interface{})
 	return t
 }
 
 func (s *Structor) Set(name string, value interface{}) *Structor {
-	s.components = make(map[string]interface{})
 	s.components[name] = value
-	s.langis.Set(name, value)
 	return s
 }
 
-func (s *Structor) CopyByName() *Structor {
-	s.copy = true
-	return s
+func (s *Structor) getStructorBase(t interface{}) *BaseStructor {
+	target := indirect(reflect.ValueOf(t))
+	tt, haveBase := indirectType(target.Type()).FieldByName("BaseStructor")
+
+	if !haveBase {
+		return nil
+	}
+
+	if indirectType(tt.Type) == reflect.TypeOf(BaseStructor{}) {
+		base := target.FieldByName("BaseStructor").Addr().Interface().(*BaseStructor)
+		tags := tt.Tag.Get("structor")
+		base.langis = otto.New()
+		base.copy = false
+
+		if strings.Contains(tags, "CopyByName") {
+			base.copy = true
+		}
+
+		for _, tag := range strings.Split(tags, ",") {
+			if tag != "CopyByName" {
+				if base.copy {
+					copit(t, s.components[tag])
+				}
+
+				base.langis.Set(tag, s.components[tag])
+			}
+		}
+		base.langis.Set("self", t)
+
+		return base
+	}
+	return nil
 }
 
 func execute(langis *otto.Otto, script string) interface{} {
@@ -47,19 +74,21 @@ func execute(langis *otto.Otto, script string) interface{} {
 	return r
 }
 
-func (s *Structor) Construct() error {
-	if s.copy {
-		for _, com := range s.components {
-			copit(s.target, com)
-		}
+func (s *Structor) Construct(target interface{}) error {
+	base := s.getStructorBase(target)
+	if base == nil {
+		return errors.New("no structor Base inSide")
 	}
-	return s.calc()
+
+	calc(s, base, target)
+
+	return nil
 }
 
 // calculate fields
-func (s *Structor) calc() (err error) {
+func calc(root *Structor, base *BaseStructor, target interface{}) (err error) {
 	var (
-		to = indirect(reflect.ValueOf(s.target))
+		to = indirect(reflect.ValueOf(target))
 	)
 
 	if !to.CanAddr() || !to.IsValid() {
@@ -75,25 +104,40 @@ func (s *Structor) calc() (err error) {
 
 	toTypeFields := deepFields(toType)
 	for _, field := range toTypeFields {
+		if field.Name == "BaseStructor" {
+			continue
+		}
+
+		toField := to.FieldByName(field.Name)
+		if toField.Kind() == reflect.Struct {
+			fmt.Printf("deep in %s @ %s\n", field.Name, field.Tag.Get("structor"))
+			base2 := root.getStructorBase(toField.Addr().Interface())
+			if base2 == nil {
+				calc(root, base, toField.Addr().Interface())
+			} else {
+				calc(root, base2, toField.Addr().Interface())
+			}
+
+			continue
+		}
+
 		script := field.Tag.Get("structor")
 		if script == "" {
 			continue
 		}
 
-		r := execute(s.langis, script)
+		r := execute(base.langis, script)
+		fmt.Printf("%s -> %v\n", script, r)
 
-		// fmt.Printf("%s -> %v\n", script, r)
-		if toField := to.FieldByName(field.Name); toField.IsValid() {
+		if toField.IsValid() {
 			if toField.CanSet() {
 				if !set(toField, indirect(reflect.ValueOf(r))) {
-					// fmt.Println("--------------- deep copy")
-					// if err := copit(toField.Addr().Interface(), r); err != nil {
-					// 	return err
-					// }
+					fmt.Printf("--------------- set failed on %s\n", field.Name)
 				}
+			} else {
+				fmt.Printf("---------------- can not set: %s\n", field.Name)
 			}
 		}
-
 	}
 
 	return
@@ -122,7 +166,7 @@ func copit(toValue interface{}, fromValue interface{}) (err error) {
 
 	// ---------------------  struct -> struct only
 	if fromType.Kind() != reflect.Struct || toType.Kind() != reflect.Struct {
-		return
+		return errors.New("only struct -> struct allowed")
 	}
 
 	if from.IsValid() {
@@ -134,9 +178,7 @@ func copit(toValue interface{}, fromValue interface{}) (err error) {
 				if toField := to.FieldByName(name); toField.IsValid() {
 					if toField.CanSet() {
 						if !set(toField, fromField) {
-							if err := copit(toField.Addr().Interface(), fromField.Interface()); err != nil {
-								return err
-							}
+							copit(toField.Addr().Interface(), fromField.Interface())
 						}
 					}
 				}
@@ -153,11 +195,7 @@ func deepFields(reflectType reflect.Type) []reflect.StructField {
 	if reflectType = indirectType(reflectType); reflectType.Kind() == reflect.Struct {
 		for i := 0; i < reflectType.NumField(); i++ {
 			v := reflectType.Field(i)
-			if v.Anonymous {
-				fields = append(fields, deepFields(v.Type)...)
-			} else {
-				fields = append(fields, v)
-			}
+			fields = append(fields, v)
 		}
 	}
 
