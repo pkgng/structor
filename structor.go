@@ -19,12 +19,14 @@ type Structor struct {
 	components map[string]interface{}
 }
 
+// new Struct
 func New() *Structor {
 	t := &Structor{}
 	t.components = make(map[string]interface{})
 	return t
 }
 
+// Prepare named struct parameter for Structor
 func (s *Structor) Set(name string, value interface{}) *Structor {
 	s.components[name] = value
 	return s
@@ -73,6 +75,7 @@ func execute(langis *otto.Otto, script string) (interface{}, error) {
 	return r, nil
 }
 
+// construct and fill the target object
 func (s *Structor) Construct(target interface{}) error {
 	base := s.getStructorBase(target)
 	if base == nil {

@@ -108,6 +108,53 @@ func main() {
 	}
 ```
 
+## 基础介绍
+
+本工具用于对象的构建，可以指定相同名字字段的copy，
+
+也可以使用其他对象的成员变量计算生成，tag内文本语法为javascrip表达式。
+
+---
+
+* 基类 structor.BaseStructor
+
+基类的 structor Tag 为逗号分割的字符串，用于指定构建对象需要用到的对象名字；
+
+成员字段计算Tag中可以直接使用这些对象的名字来引用对象；
+
+
+内置功能字符串为：
+
+|内置功能字符串 | 功能描述 |
+| --- | --- |
+| CopyByName | copy 相同名字的字段到目标对象上 |
+
+demo 中 Farmer 的基类Tag 含义为： 
+
+从 Human 和 address 两个对象来构建自己，并将有相同名字的字段 copy过来。
+
+---
+
+* 成员字段计算Tag
+
+tag内文本语法为javascrip表达式，可以使用的变量为基类中指定的对象； 
+
+另外 self变量指向本对象，可以使用self来引用CopyByName的字段，因为Copy逻辑在计算逻辑之前执行。
+
+---
+
+* Structor 对象 Set(name string, value interface{})
+
+添加构建目标对象的资源, 需要指定名字，名字要与BaseStructor Tag 中的名字相同
+
+---
+
+* Structor  Construct(target interface{})
+
+构建目标方法，调用后立即执行，输入参数为需要构建的对象的地址
+
+---
+
 ## Contributing
 
 You can help to make the project better, check out [http://gorm.io/contribute.html](http://gorm.io/contribute.html) for things you can do.
