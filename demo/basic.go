@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 
 	"github.com/pkgng/structor"
@@ -56,5 +57,11 @@ func main() {
 	farmer := Farmer{}
 	structor.New().Set("Human", &man).Set("address", address).Set("Wife", &wife).Construct(&farmer)
 
-	fmt.Printf("%#v\n", farmer)
+	// fmt.Printf("%#v\n", farmer)
+
+	b, err := json.Marshal(farmer)
+	if err != nil {
+		fmt.Println("JSON ERR:", err)
+	}
+	fmt.Println(string(b))
 }

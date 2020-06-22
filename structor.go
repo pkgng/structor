@@ -3,7 +3,6 @@ package structor
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"reflect"
 	"strings"
 
@@ -65,13 +64,13 @@ func (s *Structor) getStructorBase(t interface{}) *BaseStructor {
 	return nil
 }
 
-func execute(langis *otto.Otto, script string) interface{} {
-	value, _ := langis.Run(script)
-	r, e := value.Export()
+func execute(langis *otto.Otto, script string) (interface{}, error) {
+	value, e := langis.Run(script)
+	r, _ := value.Export()
 	if e != nil {
-		fmt.Println(e)
+		return nil, e
 	}
-	return r
+	return r, nil
 }
 
 func (s *Structor) Construct(target interface{}) error {
@@ -110,7 +109,7 @@ func calc(root *Structor, base *BaseStructor, target interface{}) (err error) {
 
 		toField := to.FieldByName(field.Name)
 		if toField.Kind() == reflect.Struct {
-			fmt.Printf("deep in %s @ %s\n", field.Name, field.Tag.Get("structor"))
+			// fmt.Printf("deep in %s @ %s\n", field.Name, field.Tag.Get("structor"))
 			base2 := root.getStructorBase(toField.Addr().Interface())
 			if base2 == nil {
 				calc(root, base, toField.Addr().Interface())
@@ -122,21 +121,13 @@ func calc(root *Structor, base *BaseStructor, target interface{}) (err error) {
 		}
 
 		script := field.Tag.Get("structor")
-		if script == "" {
+		if script == "" || !toField.IsValid() || !toField.CanSet() {
 			continue
 		}
 
-		r := execute(base.langis, script)
-		fmt.Printf("%s -> %v\n", script, r)
-
-		if toField.IsValid() {
-			if toField.CanSet() {
-				if !set(toField, indirect(reflect.ValueOf(r))) {
-					fmt.Printf("--------------- set failed on %s\n", field.Name)
-				}
-			} else {
-				fmt.Printf("---------------- can not set: %s\n", field.Name)
-			}
+		if r, err := execute(base.langis, script); err == nil {
+			// fmt.Printf("%s -> %v\n", script, r)
+			set(toField, indirect(reflect.ValueOf(r)))
 		}
 	}
 
